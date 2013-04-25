@@ -1,3 +1,21 @@
+require 'configoro'
+
+rails_root = ENV['RAILS_ROOT'] || File.dirname(__FILE__)
+::Configoro.paths << File.join(rails_root, 'config', 'environments')
+
+def conditionally(configuration_path, value, &block)
+  groups = []
+  dev    = Configoro.load_environment('development')
+  test   = Configoro.load_environment('test')
+  prod   = Configoro.load_environment('production')
+
+  groups << :development if eval("dev.#{configuration_path}") == value
+  groups << :test if eval("test.#{configuration_path}") == value
+  groups << :production if eval("prod.#{configuration_path}") == value
+
+  groups.each { |g| group g, &block }
+end
+
 source 'https://rubygems.org'
 
 # FRAMEWORK
@@ -34,10 +52,14 @@ gem 'git', github: 'RISCfuture/ruby-git'
 gem 'user-agent'
 
 # AUTH
-gem 'net-ldap', github: 'RoryO/ruby-net-ldap', require: 'net/ldap'
+conditionally('authentication.strategy', 'ldap') do
+  gem 'net-ldap', github: 'RoryO/ruby-net-ldap', require: 'net/ldap'
+end
 
 # INTEGRATION
-gem 'jira-ruby', require: 'jira'
+conditionally('jira.disabled?', false) do
+  gem 'jira-ruby', require: 'jira'
+end
 
 # DOGFOOD
 gem 'squash_ruby', require: 'squash/ruby'
@@ -76,3 +98,5 @@ group :test do
 end
 
 gem 'sql_origin', groups: [:development, :test]
+
+Configoro.paths.clear # reset configoro
